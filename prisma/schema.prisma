@@ -1,0 +1,395 @@
+// NR Lubrificantes — Super Troca de Óleo
+// Modelagem completa do banco de dados (PostgreSQL / Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum PapelUsuario {
+  ADMINISTRADOR
+  FUNCIONARIO
+}
+
+enum TipoVeiculo {
+  CARRO
+  MOTO
+  JET_SKI
+  CAMINHONETE
+  SUV
+  UTILITARIO
+}
+
+enum TipoCombustivel {
+  GASOLINA
+  ETANOL
+  DIESEL
+  FLEX
+  HIBRIDO
+  ELETRICO
+}
+
+enum FormaPagamento {
+  PIX
+  DINHEIRO
+  CARTAO
+  PARCELADO
+}
+
+enum CategoriaProduto {
+  OLEO_MOTOR
+  FILTRO_OLEO
+  FILTRO_AR
+  FILTRO_CABINE
+  FILTRO_COMBUSTIVEL
+  OLEO_CAMBIO
+  FLUIDO_RADIADOR
+  ADITIVO
+  PALHETA
+  OUTROS
+}
+
+enum TipoOleo {
+  SINTETICO
+  SEMISSINTETICO
+  MINERAL
+}
+
+enum TipoServicoRadiador {
+  LIMPEZA
+  TROCA_FLUIDO
+  COMPLETO
+}
+
+enum TipoOutroServico {
+  AR_SECO
+  CALIBRAGEM
+  HIGIENIZACAO_AR_CONDICIONADO
+  LIMPEZA_RADIADOR
+  TROCA_FLUIDO_FREIO
+  TROCA_FLUIDO_DIRECAO
+  TROCA_OLEO_CAMBIO
+  DIAGNOSTICO
+  LAVAGEM_TECNICA
+  OUTROS
+}
+
+enum TipoMovimentoEstoque {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+enum TipoTransacaoFinanceira {
+  ENTRADA
+  SAIDA
+}
+
+enum TipoAlertaTroca {
+  QUILOMETRAGEM
+  DATA
+}
+
+// ============================================================
+// USUÁRIOS / AUTENTICAÇÃO
+// ============================================================
+
+model Usuario {
+  id           String       @id @default(uuid())
+  nome         String
+  email        String       @unique
+  senhaHash    String
+  papel        PapelUsuario @default(FUNCIONARIO)
+  fotoUrl      String?
+  ativo        Boolean      @default(true)
+  criadoEm     DateTime     @default(now())
+  atualizadoEm DateTime     @updatedAt
+
+  servicosResponsavel Servico[] @relation("FuncionarioResponsavel")
+
+  @@index([email])
+  @@map("usuarios")
+}
+
+// ============================================================
+// CLIENTES / VEÍCULOS
+// ============================================================
+
+model Cliente {
+  id           String   @id @default(uuid())
+  nome         String
+  telefone     String
+  whatsapp     String?
+  cpf          String?  @unique
+  email        String?
+  endereco     String?
+  cidade       String?
+  observacoes  String?
+  fotoUrl      String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+  veiculos     Veiculo[]
+  servicos     Servico[]
+  @@index([nome])
+  @@index([telefone])
+  @@map("clientes")
+}
+
+model Veiculo {
+  id           String          @id @default(uuid())
+  clienteId    String
+  cliente      Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  marca        String
+  modelo       String
+  ano          Int
+  cor          String
+  placa        String          @unique
+  renavam      String?
+  tipo         TipoVeiculo
+  combustivel  TipoCombustivel
+  motor        String?
+  chassi       String?
+  observacoes  String?
+  quilometragemAtual Int?
+  fotoUrl      String?
+
+  criadoEm     DateTime        @default(now())
+  atualizadoEm DateTime        @updatedAt
+
+  servicos       Servico[]
+  // Regra da próxima troca (por km e/ou por data) — ver model ProximaTroca
+  proximaTroca   ProximaTroca?
+
+  @@index([placa])
+  @@index([clienteId])
+  @@map("veiculos")
+}
+
+// Regra de alerta da próxima troca: por quilometragem e/ou por data
+model ProximaTroca {
+  id             String          @id @default(uuid())
+  veiculoId      String          @unique
+  veiculo        Veiculo         @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+  tipoAlerta     TipoAlertaTroca
+  quilometragem  Int?
+  data           DateTime?
+  atualizadoEm   DateTime        @updatedAt
+
+  @@map("proxima_trocas")
+}
+
+// ============================================================
+// FORNECEDORES / PRODUTOS / ESTOQUE
+// ============================================================
+
+model Fornecedor {
+  id           String   @id @default(uuid())
+  nome         String
+  telefone     String?
+  email        String?
+  observacoes  String?
+  criadoEm     DateTime @default(now())
+
+  produtos Produto[]
+
+  @@map("fornecedores")
+}
+
+model Produto {
+  id             String           @id @default(uuid())
+  marca          String
+  linha          String?
+  codigo         String           @unique
+  categoria      CategoriaProduto
+  viscosidade    String?
+  tipoOleo       TipoOleo?
+  quantidade     Int              @default(0)
+  estoqueMinimo  Int              @default(5)
+  precoCusto     Decimal          @db.Decimal(10, 2)
+  precoVenda     Decimal          @db.Decimal(10, 2)
+  fotoUrl        String?
+
+  fornecedorId   String?
+  fornecedor     Fornecedor?      @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+
+  criadoEm       DateTime         @default(now())
+  atualizadoEm   DateTime         @updatedAt
+
+  itensServico     ItemServicoProduto[]
+  movimentosEstoque MovimentoEstoque[]
+
+  @@index([codigo])
+  @@index([categoria])
+  @@map("produtos")
+}
+
+model MovimentoEstoque {
+  id           String               @id @default(uuid())
+  produtoId    String
+  produto      Produto              @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  tipo         TipoMovimentoEstoque
+  quantidade   Int
+  observacao   String?
+  criadoEm     DateTime             @default(now())
+
+  @@index([produtoId])
+  @@map("movimentos_estoque")
+}
+
+// ============================================================
+// SERVIÇOS / TROCA DE ÓLEO
+// ============================================================
+
+model Servico {
+  id                String         @id @default(uuid())
+  data              DateTime
+  hora              String
+  funcionarioId     String
+  funcionario       Usuario        @relation("FuncionarioResponsavel", fields: [funcionarioId], references: [id])
+  clienteId         String
+  cliente           Cliente        @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  veiculoId         String
+  veiculo           Veiculo        @relation(fields: [veiculoId], references: [id], onDelete: Cascade)
+
+  quilometragem     Int
+  valorMaoDeObra    Decimal        @db.Decimal(10, 2)
+  valorProdutos     Decimal        @db.Decimal(10, 2)
+  desconto          Decimal        @default(0) @db.Decimal(10, 2)
+  formaPagamento    FormaPagamento
+  valorTotal        Decimal        @db.Decimal(10, 2)
+  observacoes       String?
+
+  criadoEm          DateTime       @default(now())
+  atualizadoEm      DateTime       @updatedAt
+
+  trocaOleo         TrocaOleo?
+  itensProduto      ItemServicoProduto[]
+  outrosServicos    OutroServico[]
+  servicoRadiador   ServicoRadiador?
+  transacao         TransacaoFinanceira?
+
+  @@index([clienteId])
+  @@index([veiculoId])
+  @@index([data])
+  @@map("servicos")
+}
+
+// Junção genérica: qualquer produto do catálogo usado em um serviço
+// (filtros de óleo/ar/cabine/combustível também são Produtos aqui)
+model ItemServicoProduto {
+  id             String   @id @default(uuid())
+  servicoId      String
+  servico        Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  produtoId      String
+  produto        Produto  @relation(fields: [produtoId], references: [id])
+  quantidade     Decimal  @db.Decimal(10, 2)
+  precoUnitario  Decimal  @db.Decimal(10, 2)
+
+  @@index([servicoId])
+  @@index([produtoId])
+  @@map("itens_servico_produto")
+}
+
+model TrocaOleo {
+  id                String   @id @default(uuid())
+  servicoId         String   @unique
+  servico           Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  marca             String
+  viscosidade       String
+  tipo              TipoOleo
+  quantidadeLitros  Decimal  @db.Decimal(6, 2)
+  preco             Decimal  @db.Decimal(10, 2)
+  lote              String?
+
+  @@map("trocas_oleo")
+}
+
+model ServicoRadiador {
+  id         String              @id @default(uuid())
+  servicoId  String              @unique
+  servico    Servico             @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  tipo       TipoServicoRadiador
+  quantidade Decimal             @db.Decimal(6, 2)
+  preco      Decimal             @db.Decimal(10, 2)
+
+  @@map("servicos_radiador")
+}
+
+model OutroServico {
+  id         String           @id @default(uuid())
+  servicoId  String
+  servico    Servico          @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  tipo       TipoOutroServico
+  descricao  String?
+  preco      Decimal          @db.Decimal(10, 2)
+
+  @@index([servicoId])
+  @@map("outros_servicos")
+}
+
+// ============================================================
+// FINANCEIRO
+// ============================================================
+
+model TransacaoFinanceira {
+  id           String                  @id @default(uuid())
+  tipo         TipoTransacaoFinanceira
+  categoria    String
+  valor        Decimal                 @db.Decimal(10, 2)
+  descricao    String?
+  data         DateTime                @default(now())
+
+  servicoId    String?                 @unique
+  servico      Servico?                @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+
+  @@index([data])
+  @@index([tipo])
+  @@map("transacoes_financeiras")
+}
+
+// ============================================================
+// CONFIGURAÇÕES DA EMPRESA
+// ============================================================
+
+model ConfiguracaoEmpresa {
+  id                    String   @id @default(uuid())
+  nomeEmpresa           String   @default("NR Lubrificantes")
+  slogan                String   @default("Super Troca de Óleo")
+  logoUrl               String?
+  telefone              String?
+  telefoneWhatsapp      String?
+  endereco              String?
+  mensagemLembreteTroca String?  @db.Text
+  atualizadoEm          DateTime @updatedAt
+
+  @@map("configuracoes_empresa")
+}
+
+// ============================================================
+// LOG DE AÇÕES (auditoria)
+// ============================================================
+
+model LogAcao {
+  id          String   @id @default(uuid())
+  usuarioId   String?
+  usuarioNome String
+  acao        String // ex: "criou", "editou", "excluiu"
+  entidade    String // ex: "Cliente", "Veiculo", "Servico", "Produto", "Usuario"
+  entidadeId  String?
+  detalhes    String?
+  criadoEm    DateTime @default(now())
+
+  @@index([criadoEm])
+  @@index([entidade])
+  @@map("logs_acao")
+}
