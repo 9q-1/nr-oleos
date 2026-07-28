@@ -1,13 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
   label: string;
   value: string;
-  icon: LucideIcon;
+  icon: ReactNode;
   hint?: string;
   tone?: "default" | "warning" | "danger" | "success";
   index?: number;
@@ -20,7 +20,7 @@ const TONES: Record<NonNullable<StatCardProps["tone"]>, string> = {
   success: "text-emerald-400 bg-emerald-500/10",
 };
 
-export function StatCard({ label, value, icon: Icon, hint, tone = "default", index = 0 }: StatCardProps) {
+export function StatCard({ label, value, icon, hint, tone = "default", index = 0 }: StatCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -34,7 +34,7 @@ export function StatCard({ label, value, icon: Icon, hint, tone = "default", ind
         {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </div>
       <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", TONES[tone])}>
-        <Icon className="h-5 w-5" />
+        {icon}
       </span>
     </motion.div>
   );
