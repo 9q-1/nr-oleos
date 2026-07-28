@@ -11,7 +11,7 @@ export async function DashboardStats() {
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-  <StatCard index={0} label="Clientes" value={String(contadores.totalClientes)} icon={<Users className="h-5 w-5" />} />
+      <StatCard index={0} label="Clientes" value={String(contadores.totalClientes)} icon={<Users className="h-5 w-5" />} />
       <StatCard index={1} label="Veículos" value={String(contadores.totalVeiculos)} icon={<Car className="h-5 w-5" />} />
       <StatCard
         index={2}
@@ -41,5 +41,6 @@ export async function DashboardStats() {
         icon={<PackageX className="h-5 w-5" />}
         tone={contadores.produtosEstoqueBaixo > 0 ? "warning" : "default"}
       />
-
-      }
+    </div>
+  );
+}
